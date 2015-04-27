@@ -5,14 +5,12 @@ import com.naxsoft.lunchinhell.Database;
 import com.naxsoft.lunchinhell.models.Restaurant;
 
 import javax.servlet.http.HttpServletRequest;
-import javax.servlet.http.HttpSession;
 import javax.ws.rs.*;
 import javax.ws.rs.core.Context;
 import javax.ws.rs.core.Response;
 import java.sql.*;
 import java.util.LinkedList;
 import java.util.List;
-import java.util.Properties;
 
 @Path("/restaurant")
 @Produces("application/json")
@@ -60,38 +58,46 @@ public class RestaurantHandler {
     @GET
     @Path("/list")
     public Response list(@Context HttpServletRequest req) {
-        try {
-            List<Restaurant> restaurants = new LinkedList<Restaurant>();
-            Gson gson = new Gson();
-            HttpSession session = req.getSession(false);
-            Integer userId = (Integer) session.getAttribute("userid");
+        Integer userId = null;
+        if (null != req) {
+            userId = (Integer) req.getSession(false).getAttribute("userid");
+        }
 
-            String sql = "select r.id, r.name, sum(v.vote) as vote\n" +
-                    "from \n" +
-                    "  (select restaurant.id, restaurant.name from lunch.restaurant) as r\n" +
-                    "  \n" +
-                    "LEFT OUTER JOIN (select voteid, restaurantid, vote from lunch.votes where lunch.votes.date = current_date and lunch.votes.userid = " + userId + " ORDER BY  restaurantid) as v\n" +
-                    "ON r.id = v.restaurantid\n" +
-                    "GROUP BY r.id, r.name\n" +
-                    "ORDER BY r.name";
+        if (null == userId) {
+            return Response.status(Response.Status.UNAUTHORIZED).build();
+        } else {
+            try {
+                List<Restaurant> restaurants = new LinkedList<Restaurant>();
+                Gson gson = new Gson();
 
-            Connection connection = new Database().getConnection();
-            Statement st = connection.createStatement();
-//            st.setInt(1, userId);
-            ResultSet rs = st.executeQuery(sql);
-            while (rs.next())
-            {
-                Restaurant r = new Restaurant(rs.getInt(1), rs.getString(2), rs.getInt(3));
-                restaurants.add(r);
+
+                String sql = "select r.id, r.name, sum(v.vote) as vote\n" +
+                        "from \n" +
+                        "  (select restaurant.id, restaurant.name from lunch.restaurant) as r\n" +
+                        "  \n" +
+                        "LEFT OUTER JOIN (select voteid, restaurantid, vote from lunch.votes where lunch.votes.date = current_date and lunch.votes.userid = " + userId + " ORDER BY  restaurantid) as v\n" +
+                        "ON r.id = v.restaurantid\n" +
+                        "GROUP BY r.id, r.name\n" +
+                        "ORDER BY r.name";
+
+                Connection connection = new Database().getConnection();
+                Statement st = connection.createStatement();
+
+                ResultSet rs = st.executeQuery(sql);
+                while (rs.next()) {
+                    Restaurant r = new Restaurant(rs.getInt(1), rs.getString(2), rs.getInt(3));
+                    restaurants.add(r);
+                }
+
+                rs.close();
+                st.close();
+                connection.close();
+                String result = gson.toJson(restaurants);
+                return Response.ok().entity(result).build();
+            } catch (Exception e) {
+                e.printStackTrace();
+                return Response.status(Response.Status.SERVICE_UNAVAILABLE).build();
             }
-            rs.close();
-            st.close();
-            connection.close();
-            String result = gson.toJson(restaurants);
-            return Response.ok().entity(result).build();
-        } catch (Exception e) {
-            e.printStackTrace();
-            return Response.status(Response.Status.SERVICE_UNAVAILABLE).build();
         }
     }
 
@@ -100,8 +106,13 @@ public class RestaurantHandler {
     @Path("/vote")
     @Consumes("application/x-www-form-urlencoded")
     public  Response vote(@Context HttpServletRequest req, @FormParam("restaurantId") String restaurantId, @FormParam("vote") int vote) {
-        Integer userId = (Integer) req.getSession(false).getAttribute("userid");
-        if (null != userId) {
+        Integer userId = null;
+        if (null != req) {
+            userId = (Integer) req.getSession(false).getAttribute("userid");
+        }
+        if (null == userId) {
+            return Response.status(Response.Status.UNAUTHORIZED).build();
+        } else {
             try {
                 Connection connection = new Database().getConnection();
                 String deleteSql = "DELETE FROM lunch.votes WHERE lunch.votes.date = current_date AND votes.userid = ? and votes.restaurantid = ?;";
@@ -124,14 +135,12 @@ public class RestaurantHandler {
             } catch (Exception e) {
                 return Response.status(Response.Status.SERVICE_UNAVAILABLE).build();
             }
-        } else {
-            return Response.status(Response.Status.UNAUTHORIZED).build();
         }
     }
 
     @GET
     @Path("/result")
-    public  Response vote() {
+    public  Response voteResults(@Context HttpServletRequest req) {
             try {
                 List<Restaurant> restaurants = new LinkedList<Restaurant>();
                 Gson gson = new Gson();
@@ -144,6 +153,7 @@ public class RestaurantHandler {
                         "where votes.date = current_date\n" +
                         "group by restaurant.id, restaurant.name\n" +
                         "order by vote DESC";
+
                 Statement st = connection.createStatement();
                 ResultSet rs = st.executeQuery(sql);
                 while (rs.next())
@@ -151,6 +161,7 @@ public class RestaurantHandler {
                     Restaurant r = new Restaurant(rs.getInt(1), rs.getString(2), rs.getInt(3));
                     restaurants.add(r);
                 }
+
                 rs.close();
                 st.close();
                 connection.close();

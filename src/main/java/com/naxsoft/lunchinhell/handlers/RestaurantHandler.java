@@ -8,6 +8,7 @@ import javax.servlet.http.HttpServletRequest;
 import javax.ws.rs.*;
 import javax.ws.rs.core.Context;
 import javax.ws.rs.core.Response;
+import java.net.URISyntaxException;
 import java.sql.*;
 import java.util.LinkedList;
 import java.util.List;
@@ -17,7 +18,7 @@ import java.util.List;
 public class RestaurantHandler {
     @GET
     @Path("/votes")
-    public Response votes(@Context HttpServletRequest req) {
+    public Response votes(@Context HttpServletRequest req) throws Exception {
         List<Restaurant> restaurants = new LinkedList<Restaurant>();
         Gson gson = new Gson();
 
@@ -26,12 +27,12 @@ public class RestaurantHandler {
                 "  restaurant.name, \n" +
                 "  sum(votes.vote)\n" +
                 "FROM \n" +
-                "  lunch.restaurant, \n" +
-                "  lunch.votes\n" +
+                "  restaurant, \n" +
+                "  votes\n" +
                 "WHERE \n" +
                 "  restaurant.id = votes.restaurantid\n" +
                 "AND\n" +
-                "  lunch.votes.date = current_date  \n" +
+                "  votes.date = current_date  \n" +
                 "GROUP BY \n" +
                 "  restaurant.id;";
 
@@ -51,7 +52,7 @@ public class RestaurantHandler {
             return Response.ok().entity(result).build();
         } catch (SQLException e) {
             e.printStackTrace();
-            return Response.status(Response.Status.SERVICE_UNAVAILABLE).build();
+            return Response.status(Response.Status.SERVICE_UNAVAILABLE).entity(e).build();
         }
     }
 
@@ -73,9 +74,9 @@ public class RestaurantHandler {
 
                 String sql = "select r.id, r.name, sum(v.vote) as vote\n" +
                         "from \n" +
-                        "  (select restaurant.id, restaurant.name from lunch.restaurant) as r\n" +
+                        "  (select restaurant.id, restaurant.name from restaurant) as r\n" +
                         "  \n" +
-                        "LEFT OUTER JOIN (select voteid, restaurantid, vote from lunch.votes where lunch.votes.date = current_date and lunch.votes.userid = " + userId + " ORDER BY  restaurantid) as v\n" +
+                        "LEFT OUTER JOIN (select voteid, restaurantid, vote from votes where votes.date = current_date and votes.userid = " + userId + " ORDER BY  restaurantid) as v\n" +
                         "ON r.id = v.restaurantid\n" +
                         "GROUP BY r.id, r.name\n" +
                         "ORDER BY r.name";
@@ -96,7 +97,7 @@ public class RestaurantHandler {
                 return Response.ok().entity(result).build();
             } catch (Exception e) {
                 e.printStackTrace();
-                return Response.status(Response.Status.SERVICE_UNAVAILABLE).build();
+                return Response.status(Response.Status.SERVICE_UNAVAILABLE).entity(e).build();
             }
         }
     }
@@ -115,14 +116,14 @@ public class RestaurantHandler {
         } else {
             try {
                 Connection connection = new Database().getConnection();
-                String deleteSql = "DELETE FROM lunch.votes WHERE lunch.votes.date = current_date AND votes.userid = ? and votes.restaurantid = ?;";
+                String deleteSql = "DELETE FROM votes WHERE votes.date = current_date AND votes.userid = ? and votes.restaurantid = ?;";
                 PreparedStatement st1 = connection.prepareStatement(deleteSql);
                 st1.setInt(1, userId.intValue());
                 st1.setInt(2, Integer.parseInt(restaurantId));
                 st1.executeUpdate();
                 st1.close();
 
-                String sql = "INSERT INTO lunch.votes(restaurantid, userid, date, vote) VALUES (?, ?, current_date, ?);";
+                String sql = "INSERT INTO votes(restaurantid, userid, date, vote) VALUES (?, ?, current_date, ?);";
                 PreparedStatement st2 = connection.prepareStatement(sql);
                 st2.setInt(1, Integer.parseInt(restaurantId));
                 st2.setInt(2, userId.intValue());
@@ -133,7 +134,7 @@ public class RestaurantHandler {
                 connection.close();
                 return Response.ok().build();
             } catch (Exception e) {
-                return Response.status(Response.Status.SERVICE_UNAVAILABLE).build();
+                return Response.status(Response.Status.SERVICE_UNAVAILABLE).entity(e).build();
             }
         }
     }
@@ -147,9 +148,9 @@ public class RestaurantHandler {
 
                 Connection connection = new Database().getConnection();
                 String sql = "select restaurant.id, restaurant.name, sum(votes.vote) as vote\n" +
-                        "from lunch.restaurant\n" +
-                        "inner join lunch.votes\n" +
-                        "on lunch.restaurant.id = lunch.votes.restaurantid\n" +
+                        "from restaurant\n" +
+                        "inner join votes\n" +
+                        "on restaurant.id = votes.restaurantid\n" +
                         "where votes.date = current_date\n" +
                         "group by restaurant.id, restaurant.name\n" +
                         "order by vote DESC";
@@ -168,7 +169,7 @@ public class RestaurantHandler {
                 String result = gson.toJson(restaurants);
                 return Response.ok().entity(result).build();
             } catch (Exception e) {
-                return Response.status(Response.Status.SERVICE_UNAVAILABLE).build();
+                return Response.status(Response.Status.SERVICE_UNAVAILABLE).entity(e).build();
             }
     }
 }

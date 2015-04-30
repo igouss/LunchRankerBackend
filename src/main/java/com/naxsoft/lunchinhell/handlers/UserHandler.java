@@ -5,6 +5,7 @@ import com.naxsoft.lunchinhell.Database;
 import javax.servlet.http.HttpServletRequest;
 import javax.servlet.http.HttpSession;
 import javax.ws.rs.*;
+import javax.ws.rs.client.Entity;
 import javax.ws.rs.core.Context;
 import javax.ws.rs.core.Response;
 import javax.ws.rs.core.UriInfo;
@@ -13,10 +14,10 @@ import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 
 @Path("/users/")
+@Produces("application/json")
 public class UserHandler {
     @GET
     @Path("/id/{username}")
-    @Produces("application/json")
     public Response get(@PathParam("username") String userName) {
         return Response.ok().entity("test").build();
     }
@@ -24,10 +25,10 @@ public class UserHandler {
     @POST
     @Path("/new")
     @Consumes("application/x-www-form-urlencoded")
-    public Response newUser(@Context UriInfo ui, @FormParam("username") String userName, @FormParam("password") String password) {
+    public Response newUser(@Context UriInfo ui, @FormParam("username") String userName, @FormParam("password") String password) throws Exception {
         try {
             Connection connection = new Database().getConnection();
-            String sql = "INSERT INTO lunch.users(id, username, pwd) VALUES (DEFAULT, ?, ?);";
+            String sql = "INSERT INTO users(id, username, pwd) VALUES (DEFAULT, ?, ?);";
             PreparedStatement st = connection.prepareStatement(sql);
             st.setString(1, userName);
             st.setString(2, password);
@@ -43,17 +44,17 @@ public class UserHandler {
             }
             return response;
         } catch (Exception e) {
-            return Response.status(Response.Status.SERVICE_UNAVAILABLE).build();
+            return Response.status(Response.Status.SERVICE_UNAVAILABLE).entity(Entity.json(e.toString())).build();
         }
     }
 
     @POST
     @Path("/login")
     @Consumes("application/x-www-form-urlencoded")
-    public Response login(@Context HttpServletRequest req, @FormParam("username") String userName, @FormParam("password") String password) {
+    public Response login(@Context HttpServletRequest req, @FormParam("username") String userName, @FormParam("password") String password) throws Exception {
         try {
             Connection connection = new Database().getConnection();
-            String sql = "SELECT users.id FROM lunch.users WHERE users.username = ? and users.pwd = ?";
+            String sql = "SELECT users.id FROM users WHERE users.username = ? and users.pwd = ?";
             PreparedStatement st = connection.prepareStatement(sql);
             st.setString(1, userName);
             st.setString(2, password);
@@ -71,7 +72,7 @@ public class UserHandler {
             connection.close();
             return response;
         } catch (Exception e) {
-            return Response.status(Response.Status.SERVICE_UNAVAILABLE).build();
+            return Response.status(Response.Status.SERVICE_UNAVAILABLE).entity(e).build();
         }
     }
 }

@@ -8,11 +8,24 @@ import org.eclipse.jetty.servlet.ServletContextHandler;
 import org.eclipse.jetty.servlet.ServletHolder;
 import org.glassfish.jersey.servlet.ServletContainer;
 
+import java.io.FileReader;
+import java.io.PrintWriter;
+import java.sql.Connection;
+
 public class LaunchServer {
     public static void main(String[] args)  {
         try {
             Class.forName("org.postgresql.Driver");
-            Server server = new Server(8080);
+
+            //initDatabase();
+
+            int port = 8080;
+            String customPort = System.getenv("PORT");
+            if (null != customPort) {
+                port = Integer.parseInt(customPort);
+            }
+
+            Server server = new Server(port);
 
             SessionManager sessionManager = new HashSessionManager();
             SessionHandler sessionHandler = new SessionHandler(sessionManager);
@@ -29,6 +42,18 @@ public class LaunchServer {
             jerseyServlet.setInitParameter("jersey.config.server.provider.packages",  "com.naxsoft.lunchinhell.handlers");
             server.start();
             server.join();
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
+    }
+
+    private static void initDatabase() {
+        try {
+            Connection connection = new Database().getConnection();
+            ScriptRunner sr = new ScriptRunner(connection, false, true);
+            sr.setErrorLogWriter(new PrintWriter(System.out));
+            sr.setLogWriter(new PrintWriter(System.out));
+            sr.runScript(new FileReader("database.sql"));
         } catch (Exception e) {
             e.printStackTrace();
         }
